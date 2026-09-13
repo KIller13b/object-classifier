@@ -14,6 +14,7 @@ const resultsEl = document.getElementById("results");
 const classesEl = document.getElementById("classes");
 const topKEl = document.getElementById("topK");
 const maxClassesEl = document.getElementById("maxClasses");
+const engineEl = document.getElementById("engine");
 const photoBtn = document.getElementById("photo-btn");
 const chooseBtn = document.getElementById("choose-btn");
 const cameraInput = document.getElementById("camera-input");
@@ -23,24 +24,25 @@ let pipe = null;
 let modelReady = false;
 let pendingImage = null;
 
-const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+const usrAgent = navigator.userAgent;
+const isIOS = /iPhone|iPad|iPod/i.test(usrAgent);
 
-let device;
+let effectiveDevice = "wasm";
+
+function resolveDevice() {
+  const choice = engineEl.value;
+  if (choice === "webgpu") return navigator.gpu ? "webgpu" : "wasm";
+  if (choice === "wasm") return "wasm";
+  return navigator.gpu ? "webgpu" : "wasm";
+}
+
 if (isIOS) {
-  // iOS Safari: force stable single-threaded WASM.
-  //  - numThreads=1 avoids the known multi-thread WASM memory blow-up
-  //  - pinning the NON-JSEP (non-Asyncify) build avoids the JSEP crash
-  //    loop that makes Safari show "A problem repeatedly occurred..."
-  //  - WebGPU is skipped entirely: its failures hard-crash the page
-  //    process instead of throwing a catchable JS error.
+  // iOS Safari: stable single-threaded WASM settings.
   env.backends.onnx.wasm.numThreads = 1;
   env.backends.onnx.wasm.wasmPaths = {
     mjs: `${ONNX_WASM}.mjs`,
     wasm: `${ONNX_WASM}.wasm`,
   };
-  device = "wasm";
-} else {
-  device = "gpu" in navigator ? "webgpu" : "wasm";
 }
 
 function setStatus(msg, pct = -1) {
@@ -62,10 +64,13 @@ classesEl.addEventListener("input", updateClassesLimit);
 maxClassesEl.addEventListener("change", updateClassesLimit);
 
 async function loadModel() {
-  setStatus("Downloading model (~200 MB, first time only)", 0);
+  effectiveDevice = resolveDevice();
+  setStatus(effectiveDevice === "wasm"
+    ? "Loading model on CPU (may take a while)..."
+    : "Loading model on GPU...", 0);
   try {
     pipe = await pipeline("zero-shot-image-classification", MODEL, {
-      device,
+      device: effectiveDevice,
       progress_callback: (p) => {
         if (p.status === "progress") {
           setStatus(
@@ -76,12 +81,14 @@ async function loadModel() {
       },
     });
   } catch (err) {
-    if (device === "webgpu") {
-      setStatus("WebGPU unavailable here, falling back to CPU...", 5);
+    if (effectiveDevice === "webgpu") {
+      setStatus("WebGPU failed here — falling back to WASM...", 5);
+      effectiveDevice = "wasm";
       pipe = await pipeline("zero-shot-image-classification", MODEL, {
         device: "wasm",
       });
     } else {
+      setStatus("Model failed to load: " + err.message);
       alert("Model failed to load: " + err.message);
       throw err;
     }
@@ -90,7 +97,9 @@ async function loadModel() {
   progressWrap.style.display = "none";
   spinner.classList.remove("go");
   statusEl.classList.add("ready");
-  setStatus("Ready & fully offline");
+  setStatus(effectiveDevice === "wasm"
+    ? "Ready & fully offline · CPU (up to ~60 s per photo)"
+    : "Ready & fully offline · GPU");
   if (pendingImage) runClassify(pendingImage);
 }
 
@@ -99,13 +108,26 @@ function classifyFromFile(file) {
   const url = URL.createObjectURL(file);
   const img = new Image();
   img.onload = () => {
-    preview.src = url;
+    const small = downscale(img) || img;
+    preview.src = small.src;
     preview.style.display = "block";
     noImg.style.display = "none";
-    if (modelReady) runClassify(img);
-    else pendingImage = img;
+    if (modelReady) runClassify(small);
+    else pendingImage = small;
   };
   img.src = url;
+}
+
+function downscale(img, maxSide = 1024) {
+  const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+  if (scale >= 1) return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(img.naturalWidth * scale);
+  canvas.height = Math.round(img.naturalHeight * scale);
+  canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+  const out = new Image();
+  out.src = canvas.toDataURL("image/jpeg", 0.9);
+  return out;
 }
 
 async function runClassify(img) {
@@ -115,15 +137,15 @@ async function runClassify(img) {
     return;
   }
   const topK = parseInt(topKEl.value, 10);
-  setStatus(`Classifying... (${device})`);
-  // For images captured as blobs, ensure the browser has decoded it
-  if (img.complete === false || img.naturalWidth === 0) await img.decode();
+  setStatus(effectiveDevice === "wasm"
+    ? "Classifying on CPU — this can take up to a minute, please wait..."
+    : "Classifying... (GPU)");
+  await img.decode();
   const start = performance.now();
-  if (!img.complete) return;
   const out = await pipe(img, classes, { topk: topK });
   const ms = Math.round(performance.now() - start);
   renderResults(out, ms);
-  setStatus(`Done in ${ms} ms · ${device}`);
+  setStatus(`Done in ${ms} ms · ${effectiveDevice}`);
   spinner.classList.remove("go");
 }
 
@@ -153,6 +175,16 @@ photoBtn.addEventListener("click", () => cameraInput.click());
 chooseBtn.addEventListener("click", () => galleryInput.click());
 cameraInput.addEventListener("change", (e) => classifyFromFile(e.target.files[0]));
 galleryInput.addEventListener("change", (e) => classifyFromFile(e.target.files[0]));
+
+engineEl.addEventListener("change", async () => {
+  if (!modelReady) return;
+  try { pipe?.dispose?.(); } catch {}
+  pipe = null;
+  modelReady = false;
+  statusEl.classList.remove("ready");
+  spinner.classList.add("go");
+  await loadModel();
+});
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js"));

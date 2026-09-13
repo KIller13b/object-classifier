@@ -83,6 +83,14 @@ input[type=file]{display:none}
 
   <div class="field-row">
     <div>
+      <label for="engine">Engine</label>
+      <select id="engine">
+        <option value="auto" selected>Auto</option>
+        <option value="webgpu">WebGPU</option>
+        <option value="wasm">CPU (WASM)</option>
+      </select>
+    </div>
+    <div>
       <label for="topK">Show top</label>
       <select id="topK"><option>1</option><option selected>3</option><option>5</option></select>
     </div>

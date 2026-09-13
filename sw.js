@@ -1,4 +1,4 @@
-const CACHE = "object-classifier-v4";
+const CACHE = "object-classifier-v5";
 const ASSETS = [
   "./",
   "./index.html",
