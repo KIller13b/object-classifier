@@ -17,12 +17,14 @@ const maxClassesEl = document.getElementById("maxClasses");
 const engineEl = document.getElementById("engine");
 const photoBtn = document.getElementById("photo-btn");
 const chooseBtn = document.getElementById("choose-btn");
+const classifyBtn = document.getElementById("classify-btn");
 const cameraInput = document.getElementById("camera-input");
 const galleryInput = document.getElementById("gallery-input");
 
 let pipe = null;
 let modelReady = false;
 let pendingImage = null;
+let currentImg = null;
 
 const usrAgent = navigator.userAgent;
 const isIOS = /iPhone|iPad|iPod/i.test(usrAgent);
@@ -109,11 +111,12 @@ function classifyFromFile(file) {
   const img = new Image();
   img.onload = () => {
     const small = downscale(img) || img;
+    currentImg = small;
     preview.src = small.src;
     preview.style.display = "block";
     noImg.style.display = "none";
-    if (modelReady) runClassify(small);
-    else pendingImage = small;
+    classifyBtn.disabled = false;
+    setStatus(modelReady ? "Tap Classify" : "Model still loading — photo saved");
   };
   img.src = url;
 }
@@ -131,22 +134,34 @@ function downscale(img, maxSide = 1024) {
 }
 
 async function runClassify(img) {
+  if (!img) {
+    setStatus("Pick a photo first");
+    return;
+  }
   const classes = classesEl.value.split(",").map((s) => s.trim()).filter(Boolean);
   if (classes.length === 0) {
     setStatus("Add at least one class name in the box above");
     return;
   }
   const topK = parseInt(topKEl.value, 10);
+  classifyBtn.disabled = true;
   setStatus(effectiveDevice === "wasm"
     ? "Classifying on CPU — this can take up to a minute, please wait..."
     : "Classifying... (GPU)");
-  await img.decode();
-  const start = performance.now();
-  const out = await pipe(img, classes, { topk: topK });
-  const ms = Math.round(performance.now() - start);
-  renderResults(out, ms);
-  setStatus(`Done in ${ms} ms · ${effectiveDevice}`);
-  spinner.classList.remove("go");
+  spinner.classList.add("go");
+  try {
+    await img.decode();
+    const start = performance.now();
+    const out = await pipe(img, classes, { topk: topK });
+    const ms = Math.round(performance.now() - start);
+    renderResults(out, ms);
+    setStatus(`Done in ${ms} ms · ${effectiveDevice}`);
+  } catch (err) {
+    setStatus("Classification failed: " + err.message);
+  } finally {
+    spinner.classList.remove("go");
+    classifyBtn.disabled = false;
+  }
 }
 
 function renderResults(out, ms) {
@@ -175,6 +190,15 @@ photoBtn.addEventListener("click", () => cameraInput.click());
 chooseBtn.addEventListener("click", () => galleryInput.click());
 cameraInput.addEventListener("change", (e) => classifyFromFile(e.target.files[0]));
 galleryInput.addEventListener("change", (e) => classifyFromFile(e.target.files[0]));
+
+classifyBtn.addEventListener("click", () => {
+  if (modelReady) {
+    runClassify(currentImg);
+  } else {
+    pendingImage = currentImg;
+    setStatus("Model still loading — will classify as soon as it's ready");
+  }
+});
 
 engineEl.addEventListener("change", async () => {
   if (!modelReady) return;

@@ -25,10 +25,13 @@ h1{font-size:1.25rem;font-weight:700}
 #progress{height:100%;width:0;background:#6ad36a;transition:width .2s}
 
 .buttons{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1rem}
-button{padding:.85rem;border:none;border-radius:10px;font-size:.92rem;font-weight:700;cursor:pointer;color:#111}
+button{width:100%;padding:.85rem;border:none;border-radius:10px;font-size:.92rem;font-weight:700;cursor:pointer;color:#111}
 .btn-photo{background:#3a7aff;color:#fff}
 .btn-choose{background:#6ad36a}
-button:active{transform:scale(.97)}
+.btn-classify{background:#ff9d2e;color:#fff;margin-bottom:1rem}
+.btn-classify:disabled{background:#4a3a20;color:#7a6a4a;cursor:not-allowed}
+.buttons button{width:100%}
+button:active:not(:disabled){transform:scale(.97)}
 
 .preview-wrap{position:relative;border-radius:12px;overflow:hidden;background:#131313;min-height:120px;display:flex;align-items:center;justify-content:center;margin-bottom:1rem;border:1px solid #222}
 .preview-wrap img{width:100%;display:block}
@@ -78,6 +81,8 @@ input[type=file]{display:none}
 
   <div class="preview-wrap"><span class="no-img" id="no-img">Your photo will appear here</span><img id="preview" alt="preview" style="display:none" /></div>
 
+  <button class="btn-classify" id="classify-btn" disabled>Classify</button>
+
   <label for="classes">Objects to look for (comma-separated)</label>
   <textarea id="classes" rows="3">cat,dog,bird,laptop,phone,car,bicycle,book,cup,chair,table,person,plant,backpack,bottle,computer,mouse,keyboard,headphones</textarea>
 
@@ -101,7 +106,7 @@ input[type=file]{display:none}
   </div>
 
   <div class="results" id="results"></div>
-  <div class="tip" id="tip">Tip: only list classes you actually expect &mdash; CLIP picks the least-wrong answer from your list even if none match. Add to Home Screen (share button) so it opens like an app and stays fully offline.</div>
+  <div class="tip" id="tip">Tip: pick a photo, then tap <b>Classify</b>. Only list classes you actually expect — CLIP picks the least-wrong answer from your list even if none match. Add to Home Screen (share button) so it opens like an app and stays fully offline.</div>
 </div>
 
 <script type="module" src="./app.js"></script>
