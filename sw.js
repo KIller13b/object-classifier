@@ -1,4 +1,4 @@
-const CACHE = "object-classifier-v3";
+const CACHE = "object-classifier-v4";
 const ASSETS = [
   "./",
   "./index.html",
@@ -32,6 +32,22 @@ self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   if (url.includes("huggingface.co") || url.includes("hf.co")) return;
 
+  // Navigation (page loads): network first, cache only when offline.
+  // Prevents a stale/broken cached page from causing reload loops.
+  if (e.request.mode === "navigate") {
+    e.respondWith(
+      fetch(e.request)
+        .then((resp) => {
+          const clone = resp.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, clone));
+          return resp;
+        })
+        .catch(() => caches.match(e.request).then((cached) => cached || caches.match("./")))
+    );
+    return;
+  }
+
+  // Static assets: cache first, refresh in the background.
   e.respondWith(
     caches.match(e.request).then((cached) => {
       const network = fetch(e.request)

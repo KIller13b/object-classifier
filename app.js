@@ -1,6 +1,7 @@
 import { pipeline, env } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.1/dist/transformers.min.js";
 
 const MODEL = "Xenova/clip-vit-base-patch32";
+const ONNX_WASM = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0-dev.20250409-89f8206ba4/dist/ort-wasm-simd-threaded";
 
 const statusEl = document.getElementById("status");
 const statusText = document.getElementById("status-text");
@@ -22,11 +23,25 @@ let pipe = null;
 let modelReady = false;
 let pendingImage = null;
 
-if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-  env.backends.onnx.wasm.numThreads = 1;
-}
+const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-const device = "gpu" in navigator ? "webgpu" : "wasm";
+let device;
+if (isIOS) {
+  // iOS Safari: force stable single-threaded WASM.
+  //  - numThreads=1 avoids the known multi-thread WASM memory blow-up
+  //  - pinning the NON-JSEP (non-Asyncify) build avoids the JSEP crash
+  //    loop that makes Safari show "A problem repeatedly occurred..."
+  //  - WebGPU is skipped entirely: its failures hard-crash the page
+  //    process instead of throwing a catchable JS error.
+  env.backends.onnx.wasm.numThreads = 1;
+  env.backends.onnx.wasm.wasmPaths = {
+    mjs: `${ONNX_WASM}.mjs`,
+    wasm: `${ONNX_WASM}.wasm`,
+  };
+  device = "wasm";
+} else {
+  device = "gpu" in navigator ? "webgpu" : "wasm";
+}
 
 function setStatus(msg, pct = -1) {
   statusText.textContent = msg;
