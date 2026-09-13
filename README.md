@@ -39,6 +39,37 @@ iPhone browser
 
 CLIP compares your photo's visual features against text features of whatever class names you provide. The most similar class wins. This is the same technique that powers modern search, only it runs entirely inside the browser.
 
+## What it can classify
+
+There is **no fixed list** — CLIP is *open-vocabulary*: it classifies anything you type as a class name. The model compares your photo against whatever words you provide, so the catalog is your vocabulary, not a baked-in database.
+
+The app ships with these 19 defaults:
+
+```
+cat, dog, bird, laptop, phone, car, bicycle, book, cup, chair, table, person, plant, backpack, bottle, computer, mouse, keyboard, headphones
+```
+
+**What it's reliably good at** — paste any of these into the classes box:
+
+| Category | Example classes |
+|---|---|
+| Animals | cat, dog, bird, horse, cow, sheep, deer, bear, rabbit, squirrel, snake, fish, butterfly, spider |
+| Vehicles | car, truck, motorcycle, bicycle, bus, train, airplane, boat, helicopter, skateboard, scooter |
+| Electronics | phone, laptop, tablet, TV, monitor, keyboard, mouse, headphones, camera, drone, speaker, printer, router, smartwatch |
+| Household | chair, table, sofa, bed, lamp, mirror, refrigerator, microwave, oven, toaster, vacuum, clock, towel |
+| Kitchen | cup, mug, plate, bowl, fork, spoon, knife, bottle, glass, pan, kettle |
+| Personal items | backpack, bag, wallet, keys, sunglasses, jacket, shoes, hat, watch, umbrella |
+| Tools / outdoor | hammer, screwdriver, wrench, saw, ladder, lawnmower, tent, telescope, scissors |
+| Food | apple, banana, orange, bread, pizza, burger, sandwich, egg, milk, coffee, rice, cake, ice cream |
+| Misc | person, child, plant, flower, tree, rock, ball, box, paper, pen, pencil, chain, rope |
+
+### How to word your classes (accuracy tips)
+
+- **General words beat brand names** — `shoe` works, `Air Jordan 4` usually won't.
+- **Specific beats broad when things look alike** — `bird` beats `animal`; `coffee mug` and `teacup` will be confused with each other.
+- **Bigger lists still work but blur the edges** — with 10 classes you get ~95%+; with 200+ similar objects, expect confusion between lookalikes (rank-5 accuracy stays good).
+- **Always name what you expect** — CLIP *always* returns an answer from your list, even if nothing matches. Keep the list realistic for your scene.
+
 ## Configuration
 
 | Setting | What it does |
@@ -94,7 +125,7 @@ pwa/
 
 - **Speed:** ~2–4 s per photo on recent iPhones (WebGPU), ~5–8 s on older iOS (WASM fallback). It classifies still photos, not live video.
 - **Semantics:** CLIP recognizes *general concepts*. Brand names and novel-specific classes (e.g. *"defect type 7"*) won't work without fine-tuning; for new objects just reword the class list.
-- **Candidate bias:** CLIP always returns an answer from your class list, even if none matches. Keep the list to things you actually expect.
+- **Candidate bias:** CLIP always returns an answer from your class list, even if none matches. Keep the list to things you actually expect (see *How to word your classes* above).
 - **iOS version:** needs iOS 17.4+ to load the model reliably; older iOS may crash while downloading large models.
 
 ## Extending
